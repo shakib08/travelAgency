@@ -18,7 +18,8 @@ class _SignUpState extends State<SignUp> {
   bool _isRetypePasswordVisible = false;
   String? _selectedDivision;
   String? _selectedDistrict;
-   File? _profileImage; // To store the selected profile image
+  File? _profileImage; // To store the selected profile image
+  String? _imageName; // To store the name of the selected image
 
   final List<String> _divisions = [
     'Dhaka',
@@ -52,6 +53,7 @@ class _SignUpState extends State<SignUp> {
     if (pickedFile != null) {
       setState(() {
         _profileImage = File(pickedFile.path); // Store the selected image
+        _imageName = pickedFile.name; // Store the image name
       });
     }
   }
@@ -201,22 +203,32 @@ class _SignUpState extends State<SignUp> {
               ),
               SizedBox(height: screenHeight * 0.02),
 
-              // Profile Picture Upload Button
-              Padding(
+              //5 Profile Picture Upload Button
+                Padding(
                 padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
-                child: ElevatedButton(
-                  onPressed: _pickImage, 
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade700,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    ElevatedButton(
+                      onPressed: _pickImage,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade700,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                      ),
+                      child: Text("Upload Profile Picture"),
                     ),
-                  ),
-                  child: Text("Upload Profile Picture"),
+                    SizedBox(width: 10),
+                    Text(
+                      _imageName ?? "No image selected",
+                      style: TextStyle(fontSize: screenWidth * 0.045),
+                    ),
+                  ],
                 ),
               ),
+              
               SizedBox(height: screenHeight * 0.02),
-
               // Password Input Field with toggle visibility
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
@@ -287,7 +299,7 @@ class _SignUpState extends State<SignUp> {
                   ),
                   child: ElevatedButton(
                     onPressed: () {
-                      // Handle signup action
+                      context.go('/home');// Handle signup action
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,

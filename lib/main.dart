@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:ui/screens/home.dart';
 import 'package:ui/screens/login.dart';
 import 'package:ui/screens/signup.dart';
 
@@ -27,6 +28,12 @@ final GoRouter _router = GoRouter(
       path: '/signup',
       builder: (BuildContext context, GoRouterState state) {
         return const SignUp();
+      },
+    ),
+     GoRoute(
+      path: '/home',
+      builder: (BuildContext context, GoRouterState state) {
+        return const Home();
       },
     ),
   ],
