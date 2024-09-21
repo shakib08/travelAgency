@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart'; // Import go_router package
+import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -9,9 +11,42 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
+  User? currentUser; // Current logged-in user
+  String? profileImage; // URL for the user's profile image
+  String? userName; // Name of the current user
+
+  @override
+  void initState() {
+    super.initState();
+    _getCurrentUser();
+  }
+
+  Future<void> _getCurrentUser() async {
+    currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser != null) {
+      // Fetch user data from Firestore
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser!.uid)
+          .get();
+
+      setState(() {
+        profileImage = userDoc['imageUrl']; // Assuming you store the image URL here
+        userName = userDoc['name']; // Assuming you store the name here
+      });
+    }
+  }
+
+  Future<void> _logout() async {
+    await FirebaseAuth.instance.signOut(); // Sign out the user
+    context.go('/login'); // Navigate to the login page after logout
+  }
+
   @override
   Widget build(BuildContext context) {
     Size size = MediaQuery.of(context).size;
+
     return Scaffold(
       endDrawer: Drawer( // Right side drawer
         child: ListView(
@@ -28,10 +63,12 @@ class _HomeState extends State<Home> {
                   end: Alignment.bottomRight,
                 ),
               ),
-              accountName: const Text("Shakib's Travel"), // Name below avatar
+              accountName: Text(userName ?? "User"), // Display the user's name
               accountEmail: null,
-              currentAccountPicture: const CircleAvatar(
-                backgroundImage: NetworkImage('https://via.placeholder.com/150'), // Placeholder image for avatar
+              currentAccountPicture: CircleAvatar(
+                backgroundImage: profileImage != null
+                    ? NetworkImage(profileImage!) // Use the profile image
+                    : const NetworkImage('https://via.placeholder.com/150'), // Placeholder if no image
               ),
             ),
             ListTile(
@@ -57,7 +94,7 @@ class _HomeState extends State<Home> {
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text('Logout'),
-              onTap: () {} // Handle logout
+              onTap: _logout // Handle logout
             ),
           ],
         ),

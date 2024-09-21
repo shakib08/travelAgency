@@ -1,18 +1,22 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:ui/main.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class SignUp extends StatefulWidget {
+final authProvider = Provider<FirebaseAuth>((ref) => FirebaseAuth.instance);
+final firestoreProvider = Provider<FirebaseFirestore>((ref) => FirebaseFirestore.instance);
+
+class SignUp extends ConsumerStatefulWidget {
   const SignUp({super.key});
 
   @override
-  State<SignUp> createState() => _SignUpState();
+  ConsumerState<SignUp> createState() => _SignUpState();
 }
 
-class _SignUpState extends State<SignUp> {
+class _SignUpState extends ConsumerState<SignUp> {
   // State variables
   bool _isPasswordVisible = false;
   bool _isRetypePasswordVisible = false;
@@ -20,6 +24,12 @@ class _SignUpState extends State<SignUp> {
   String? _selectedDistrict;
   File? _profileImage; // To store the selected profile image
   String? _imageName; // To store the name of the selected image
+  String _email = '';
+  String _password = '';
+  String _name = '';
+  String _contactNumber = '';
+  String _address = '';
+  bool _isLoading = false;
 
   final List<String> _divisions = [
     'Dhaka',
@@ -33,18 +43,16 @@ class _SignUpState extends State<SignUp> {
   ];
 
   final Map<String, List<String>> _districts = {
-    'Dhaka': ['Dhaka', 'Narayanganj', 'Narsingdi', 'Gazipur', 'Manikgonj', 'Munshigonj', 'Tangail', 'Kishorgonj',
-     'Netrokona', 'Faridpur', 'Gopalgonj', 'Madaripur', 'Rajbari', 'Shariatpur'],
+    'Dhaka': ['Dhaka', 'Narayanganj', 'Narsingdi', 'Gazipur', 'Manikgonj', 'Munshigonj', 'Tangail', 'Kishorgonj', 'Netrokona', 'Faridpur', 'Gopalgonj', 'Madaripur', 'Rajbari', 'Shariatpur'],
     'Chattogram': ['Chattogram', 'Cox\'s Bazar', 'Feni', 'Rangamati', 'Bandarban', 'Khagrachhari', 'Lakshmipur', 'Comilla', 'Noakhali', 'Brahmanbaria', 'Chandpur'],
     'Khulna': ['Khulna', 'Jessore', 'Satkhira', 'Bagherhat', 'Magura', 'Jhenaidah', 'Narail', 'Kushtia', 'Chuadanga', 'Meherpur'],
-    'Rajshahi': ['Rajshahi', 'Naogaon', 'Pabna', 'Bogra',  'Natore', 'Chapainawabganj', 'Sirajganj', 'Joypurhat'],
+    'Rajshahi': ['Rajshahi', 'Naogaon', 'Pabna', 'Bogra', 'Natore', 'Chapainawabganj', 'Sirajganj', 'Joypurhat'],
     'Barishal': ['Barishal', 'Jhalokati', 'Patuakhali', 'Barguna', 'Pirojpur', 'Bhola'],
-    'Sylhet': ['Sylhet', 'Moulvibazar', 'Habiganj',  'Sunamganj'],
+    'Sylhet': ['Sylhet', 'Moulvibazar', 'Habiganj', 'Sunamganj'],
     'Rangpur': ['Rangpur', 'Kurigram', 'Dinajpur', 'Gaibandha', 'Nilphamari', 'Lalmonirhat', 'Thakurgaon', 'Panchagarh'],
     'Mymensingh': ['Mymensingh', 'Jamalpur', 'Netrokona', 'Sherpur'],
   };
 
-  
   // Function to pick an image
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
@@ -54,6 +62,46 @@ class _SignUpState extends State<SignUp> {
       setState(() {
         _profileImage = File(pickedFile.path); // Store the selected image
         _imageName = pickedFile.name; // Store the image name
+      });
+    }
+  }
+
+  Future<void> _signUp() async {
+    setState(() {
+      _isLoading = true; // Show loading indicator
+    });
+
+    try {
+      final auth = ref.read(authProvider);
+      final UserCredential userCredential = await auth.createUserWithEmailAndPassword(
+        email: _email,
+        password: _password,
+      );
+
+      await userCredential.user?.sendEmailVerification();
+
+      // Store user data in Firestore
+      final firestore = ref.read(firestoreProvider);
+      await firestore.collection('users').doc(userCredential.user?.uid).set({
+        'name': _name,
+        'email': _email,
+        'contactNumber': _contactNumber,
+        'address': _address,
+        'division': _selectedDivision,
+        'district': _selectedDistrict,
+        'imageUrl': _profileImage?.path, // You may need to upload the image to storage first
+      });
+
+      // Navigate to home or other appropriate page after successful signup
+      context.go('/home');
+    } on FirebaseAuthException catch (e) {
+      // Handle errors
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Error signing up')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false; // Hide loading indicator
       });
     }
   }
@@ -104,6 +152,9 @@ class _SignUpState extends State<SignUp> {
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
                 child: TextField(
+                  onChanged: (value) {
+                    _name = value;
+                  },
                   decoration: InputDecoration(
                     labelText: "NAME",
                     hintText: "John Doe",
@@ -175,13 +226,16 @@ class _SignUpState extends State<SignUp> {
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
                 child: TextField(
+                  onChanged: (value) {
+                    _address = value;
+                  },
                   decoration: InputDecoration(
                     labelText: "ADDRESS",
                     hintText: "Your address here",
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(15),
                     ),
-                     prefixIcon: Icon(Icons.location_city_sharp),
+                    prefixIcon: Icon(Icons.location_city_sharp),
                   ),
                 ),
               ),
@@ -191,6 +245,9 @@ class _SignUpState extends State<SignUp> {
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
                 child: TextField(
+                  onChanged: (value) {
+                    _contactNumber = value;
+                  },
                   decoration: InputDecoration(
                     labelText: "CONTACT NUMBER",
                     hintText: "+8801XXXXXXXXX",
@@ -203,47 +260,42 @@ class _SignUpState extends State<SignUp> {
               ),
               SizedBox(height: screenHeight * 0.02),
 
-              //5 Profile Picture Upload Button
-                Padding(
-                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    ElevatedButton(
-                      onPressed: _pickImage,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade700,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                      ),
-                      child: Text("Upload Profile Picture"),
-                    ),
-                    SizedBox(width: 10),
-                    Text(
-                      _imageName ?? "No image selected",
-                      style: TextStyle(fontSize: screenWidth * 0.045),
-                    ),
-                  ],
-                ),
-              ),
-              
-              SizedBox(height: screenHeight * 0.02),
-              // Password Input Field with toggle visibility
+              // Email Address Input Field
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
                 child: TextField(
+                  onChanged: (value) {
+                    _email = value;
+                  },
+                  decoration: InputDecoration(
+                    labelText: "Email Address",
+                    hintText: "joe@gmail.com",
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    prefixIcon: Icon(Icons.email),
+                  ),
+                ),
+              ),
+              SizedBox(height: screenHeight * 0.02),
+
+              // Password Input Field
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+                child: TextField(
+                  onChanged: (value) {
+                    _password = value;
+                  },
+                  obscureText: !_isPasswordVisible,
                   decoration: InputDecoration(
                     labelText: "PASSWORD",
-                    hintText: "********",
+                    hintText: "Enter your password",
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(15),
                     ),
                     prefixIcon: Icon(Icons.lock),
                     suffixIcon: IconButton(
-                      icon: Icon(
-                        _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-                      ),
+                      icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off),
                       onPressed: () {
                         setState(() {
                           _isPasswordVisible = !_isPasswordVisible;
@@ -251,37 +303,27 @@ class _SignUpState extends State<SignUp> {
                       },
                     ),
                   ),
-                  obscureText: !_isPasswordVisible,
                 ),
               ),
               SizedBox(height: screenHeight * 0.02),
 
-              // Retype Password Input Field with toggle visibility
+              // Image Picker Button
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
-                child: TextField(
-                  decoration: InputDecoration(
-                    labelText: "RETYPE PASSWORD",
-                    hintText: "********",
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    prefixIcon: Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _isRetypePasswordVisible ? Icons.visibility : Icons.visibility_off,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _isRetypePasswordVisible = !_isRetypePasswordVisible;
-                        });
-                      },
-                    ),
-                  ),
-                  obscureText: !_isRetypePasswordVisible,
+                child: ElevatedButton(
+                  onPressed: _pickImage,
+                  child: Text("Pick Profile Image"),
                 ),
               ),
-              SizedBox(height: screenHeight * 0.04),
+              SizedBox(height: screenHeight * 0.02),
+
+              // Display Image Name if Image is Selected
+              if (_imageName != null)
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+                  child: Text("Selected Image: $_imageName"),
+                ),
+              SizedBox(height: screenHeight * 0.02),
 
               // Sign Up Button
               Padding(
@@ -298,9 +340,7 @@ class _SignUpState extends State<SignUp> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: ElevatedButton(
-                    onPressed: () {
-                      context.go('/home');// Handle signup action
-                    },
+                    onPressed: _isLoading ? null : _signUp, // Disable button when loading
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
@@ -308,39 +348,28 @@ class _SignUpState extends State<SignUp> {
                         borderRadius: BorderRadius.circular(20),
                       ),
                     ),
-                    child: Text(
-                      "Sign Up",
-                      style: TextStyle(
-                        fontSize: screenWidth * 0.05,
-                        color: Colors.white,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          )
+                        : Text(
+                            "Sign Up",
+                            style: TextStyle(
+                              fontSize: screenWidth * 0.05,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
               ),
-              SizedBox(height: screenHeight * 0.04),
+              SizedBox(height: screenHeight * 0.02),
 
-              // Don't have an account? Sign up
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "Already have an account?",
-                    style: TextStyle(fontSize: screenWidth * 0.04),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      context.go('/login');// Navigate to login page
-                    },
-                    child: Text(
-                      "Log in",
-                      style: TextStyle(
-                        fontSize: screenWidth * 0.04,
-                        color: Colors.blue.shade700,
-                      ),
-                    ),
-                  ),
-                ],
+              // Navigation to Login Page
+              TextButton(
+                onPressed: () {
+                  context.go('/login');
+                },
+                child: Text("Already have an account? Login here."),
               ),
               SizedBox(height: screenHeight * 0.05),
             ],
